@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Memory Isolation System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(55, 65, 81, 0.8);
+            border-radius: 0.75rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .neon-text {
+            color: #22d3ee;
+            text-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
+        }
+        .neon-border {
+            border: 1px solid rgba(6, 182, 212, 0.5);
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+        }
+        
+        /* Frame coloring classes */
+        .frame-free { background-color: #1f2937; border-color: #374151; }
+        .frame-p1 { background-color: rgba(59, 130, 246, 0.2); border-color: #3b82f6; box-shadow: 0 0 10px rgba(59,130,246,0.5); }
+        .frame-p2 { background-color: rgba(168, 85, 247, 0.2); border-color: #a855f7; box-shadow: 0 0 10px rgba(168,85,247,0.5); }
+        .frame-p3 { background-color: rgba(16, 185, 129, 0.2); border-color: #10b981; box-shadow: 0 0 10px rgba(16,185,129,0.5); }
+        .frame-p4 { background-color: rgba(245, 158, 11, 0.2); border-color: #f59e0b; box-shadow: 0 0 10px rgba(245,158,11,0.5); }
+        .frame-p5 { background-color: rgba(236, 72, 153, 0.2); border-color: #ec4899; box-shadow: 0 0 10px rgba(236,72,153,0.5); }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    </style>
+</head>
+<body class="min-h-screen p-6 flex flex-col gap-6">
+
+    <!-- Header -->
+    <header class="glass-panel neon-border p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <i data-lucide="shield" class="w-8 h-8 text-cyan-400"></i>
+            <h1 class="text-2xl font-bold tracking-wider">SECURE MEMORY ISOLATION SYSTEM</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div id="status-dot" class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></div>
+                <span id="status-text" class="text-sm text-gray-400">CONNECTING...</span>
+            </div>
+            <button onclick="socket.emit('reset_engine')" class="px-4 py-2 bg-red-900/50 hover:bg-red-800 border border-red-500/50 rounded-lg text-sm text-red-200 transition-colors">
+                REBOOT SYSTEM
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+        
+        <!-- Left Column: Process & Matrix -->
+        <div class="col-span-1 lg:col-span-3 flex flex-col gap-6">
+            <!-- Process Control -->
+            <div class="glass-panel p-4 flex flex-col max-h-[400px]">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-2">
+                    <i data-lucide="server" class="w-5 h-5 text-cyan-400"></i>
+                    <h2 class="text-lg font-semibold tracking-wide">PROCESS MANAGER</h2>
+                </div>
+                <div class="mb-4 flex flex-col gap-2">
+                    <input type="text" id="proc-name" placeholder="Process Name (e.g. app.exe)" class="bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-cyan-500 text-white">
+                    <div class="flex gap-2">
+                        <select id="proc-mem" class="bg-gray-800/50 border border-gray-700 rounded px-3 py-2 text-sm flex-1 text-white outline-none">
+                            <option value="256">256 Bytes</option>
+                            <option value="512" selected>512 Bytes</option>
+                            <option value="1024">1024 Bytes</option>
+                        </select>
+                        <button onclick="spawnProcess()" class="bg-cyan-600/20 hover:bg-cyan-600/40 border border-cyan-500/50 text-cyan-400 px-3 py-2 rounded flex items-center gap-1">
+                            <i data-lucide="play" class="w-4 h-4"></i> <span class="text-sm font-semibold">SPAWN</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="process-list" class="flex-1 overflow-auto pr-2 flex flex-col gap-2">
+                    <!-- Processes injected here -->
+                </div>
+            </div>
+
+            <!-- Access Matrix -->
+            <div class="glass-panel p-4 flex flex-col flex-1 min-h-[250px]">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-2">
+                    <i data-lucide="lock" class="w-5 h-5 text-cyan-400"></i>
+                    <h2 class="text-lg font-semibold tracking-wide">ACCESS MATRIX</h2>
+                </div>
+                <div id="access-matrix" class="flex-1 overflow-auto text-sm text-gray-300">
+                    <!-- Matrix injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Column: Memory & Paging -->
+        <div class="col-span-1 lg:col-span-6 flex flex-col gap-6">
+            <!-- Memory Visualizer -->
+            <div class="glass-panel p-4 flex-1 flex flex-col min-h-[300px]">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-2">
+                    <i data-lucide="cpu" class="w-5 h-5 text-cyan-400"></i>
+                    <h2 class="text-lg font-semibold tracking-wide">PHYSICAL RAM (FRAMES)</h2>
+                </div>
+                <div class="flex-1 overflow-auto pr-2">
+                    <div id="memory-grid" class="grid grid-cols-8 gap-2">
+                        <!-- Frames injected here -->
+                    </div>
+                </div>
+                <div id="memory-legend" class="mt-4 pt-4 border-t border-gray-800 flex flex-wrap gap-3">
+                    <!-- Legend injected here -->
+                </div>
+            </div>
+
+            <!-- Paging Simulator -->
+            <div class="glass-panel p-4 flex flex-col min-h-[250px]">
+                <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-2">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="database" class="w-5 h-5 text-cyan-400"></i>
+                        <h2 class="text-lg font-semibold tracking-wide">PAGE TABLE MAPPING</h2>
+                    </div>
+                    <select id="paging-pid-select" onchange="renderPaging()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white">
+                        <option value="">Select Process...</option>
+                    </select>
+                </div>
+                <div id="paging-view" class="flex-1 overflow-auto flex gap-8 justify-center items-start pt-4 text-gray-300">
+                    Select a process to view its page table.
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Attacks & Logs -->
+        <div class="col-span-1 lg:col-span-3 flex flex-col gap-6">
+            <!-- Threat Simulator -->
+            <div class="glass-panel p-4 flex flex-col gap-4">
+                <div class="flex items-center gap-2 border-b border-gray-800 pb-2">
+                    <i data-lucide="shield-alert" class="w-5 h-5 text-red-500"></i>
+                    <h2 class="text-lg font-semibold tracking-wide text-red-400">THREAT SIMULATOR</h2>
+                </div>
+                
+                <!-- Buffer Overflow -->
+                <div class="bg-gray-800/30 p-3 rounded border border-red-900/50">
+                    <h3 class="text-sm font-semibold mb-2 flex items-center gap-1 text-red-300">
+                        <i data-lucide="zap" class="w-4 h-4"></i> Buffer Overflow
+                    </h3>
+                    <div class="flex gap-2">
+                        <select id="attack-overflow-pid" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm flex-1 text-white">
+                        </select>
+                        <button onclick="triggerOverflow()" class="bg-red-600/20 hover:bg-red-600/40 border border-red-500 text-red-400 px-3 py-1 rounded text-sm transition-colors">
+                            EXECUTE
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Unauthorized Access -->
+                <div class="bg-gray-800/30 p-3 rounded border border-orange-900/50">
+                    <h3 class="text-sm font-semibold mb-2 flex items-center gap-1 text-orange-300">
+                        <i data-lucide="crosshair" class="w-4 h-4"></i> Unauthorized Read
+                    </h3>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex gap-2">
+                            <select id="attack-source-pid" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm flex-1 text-white"></select>
+                            <select id="attack-target-pid" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm flex-1 text-white"></select>
+                        </div>
+                        <button onclick="triggerUnauthorized()" class="bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500 text-orange-400 px-3 py-1 rounded text-sm transition-colors w-full">
+                            SIMULATE ILLEGAL ACCESS
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Shared Memory -->
+                <div class="bg-gray-800/30 p-3 rounded border border-blue-900/50">
+                    <h3 class="text-sm font-semibold mb-2 flex items-center gap-1 text-blue-300">
+                        Shared Memory (IPC)
+                    </h3>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex gap-2">
+                            <select id="shared-pid1" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm flex-1 text-white"></select>
+                            <select id="shared-pid2" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm flex-1 text-white"></select>
+                        </div>
+                        <button onclick="triggerShared()" class="bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500 text-blue-400 px-3 py-1 rounded text-sm transition-colors w-full">
+                            CREATE SHARED REGION
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Alerts -->
+            <div class="glass-panel p-4 flex flex-col flex-1 min-h-[250px]">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-2">
+                    <i data-lucide="terminal" class="w-5 h-5 text-cyan-400"></i>
+                    <h2 class="text-lg font-semibold tracking-wide">SYSTEM LOGS</h2>
+                </div>
+                <div id="logs-container" class="flex-1 overflow-y-auto pr-2 font-mono text-[11px] leading-tight flex flex-col gap-1">
+                    <!-- Logs injected here -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const socket = io();
+        let currentState = null;
+
+        socket.on('connect', () => {
+            document.getElementById('status-dot').className = "w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]";
+            document.getElementById('status-text').innerText = "KERNEL ONLINE";
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('status-dot').className = "w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]";
+            document.getElementById('status-text').innerText = "CONNECTION LOST";
+        });
+
+        socket.on('state_update', (data) => {
+            currentState = data;
+            renderAll();
+        });
+
+        function spawnProcess() {
+            const name = document.getElementById('proc-name').value;
+            const size = document.getElementById('proc-mem').value;
+            if(name) {
+                socket.emit('create_process', { name: name, memory_size: parseInt(size) });
+                document.getElementById('proc-name').value = '';
+            }
+        }
+
+        function killProcess(pid) {
+            socket.emit('terminate_process', { pid: parseInt(pid) });
+        }
+
+        function triggerOverflow() {
+            const pid = document.getElementById('attack-overflow-pid').value;
+            if(pid) socket.emit('simulate_buffer_overflow', { pid: parseInt(pid) });
+        }
+
+        function triggerUnauthorized() {
+            const src = document.getElementById('attack-source-pid').value;
+            const tgt = document.getElementById('attack-target-pid').value;
+            if(src && tgt) socket.emit('simulate_unauthorized_access', { source_pid: parseInt(src), target_pid: parseInt(tgt) });
+        }
+
+        function triggerShared() {
+            const p1 = document.getElementById('shared-pid1').value;
+            const p2 = document.getElementById('shared-pid2').value;
+            if(p1 && p2) socket.emit('setup_shared_memory', { pid1: parseInt(p1), pid2: parseInt(p2) });
+        }
+
+        function getFrameClass(pid) {
+            if (pid === 0) return 'frame-free';
+            const classes = ['frame-p1', 'frame-p2', 'frame-p3', 'frame-p4', 'frame-p5'];
+            return classes[pid % classes.length];
+        }
+
+        function renderAll() {
+            if (!currentState) return;
+            renderProcesses();
+            renderMemory();
+            renderAccessMatrix();
+            renderLogs();
+            updateSelects();
+            renderPaging();
+            lucide.createIcons();
+        }
+
+        function renderProcesses() {
+            const list = document.getElementById('process-list');
+            list.innerHTML = '';
+            const processes = Object.values(currentState.processes);
+            if(processes.length === 0) {
+                list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4">No active processes</div>';
+                return;
+            }
+
+            processes.forEach(p => {
+                const pages = Object.keys(p.pages).length;
+                list.innerHTML += `
+                    <div class="bg-gray-800/40 border border-gray-700 p-2 rounded flex justify-between items-center animate-fade-in">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono text-xs text-cyan-400 bg-cyan-900/30 px-1 py-0.5 rounded">PID:${p.pid}</span>
+                                <span class="text-sm font-medium text-white">${p.name}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                <i data-lucide="activity" class="w-3 h-3"></i>
+                                <span>${p.state} | Pages: ${pages}</span>
+                            </div>
+                        </div>
+                        <button onclick="killProcess(${p.pid})" class="text-red-400 hover:text-red-300 p-1 hover:bg-red-900/30 rounded transition-colors" title="Terminate">
+                            <i data-lucide="square" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        function renderMemory() {
+            const grid = document.getElementById('memory-grid');
+            grid.innerHTML = '';
+            currentState.frames.forEach((pid, idx) => {
+                const frameClass = getFrameClass(pid);
+                const pidText = pid > 0 ? `<span class="font-mono text-sm font-bold text-white">P${pid}</span>` : '';
+                grid.innerHTML += `
+                    <div class="relative aspect-square rounded flex flex-col items-center justify-center border transition-all duration-300 ${frameClass} animate-fade-in" title="Frame ${idx}">
+                        <span class="text-[10px] text-gray-400 absolute top-1 left-1">${idx}</span>
+                        ${pidText}
+                    </div>
+                `;
+            });
+
+            // Legend
+            const legend = document.getElementById('memory-legend');
+            let legendHTML = `
+                <div class="flex items-center gap-1 text-xs">
+                    <div class="w-3 h-3 border border-gray-700 bg-gray-800 rounded-sm"></div>
+                    <span class="text-gray-400">FREE</span>
+                </div>
+            `;
+            Object.values(currentState.processes).forEach(p => {
+                const frameClass = getFrameClass(p.pid);
+                legendHTML += `
+                    <div class="flex items-center gap-1 text-xs">
+                        <div class="w-3 h-3 border rounded-sm ${frameClass}"></div>
+                        <span class="text-gray-300">PID ${p.pid} (${p.name})</span>
+                    </div>
+                `;
+            });
+            legend.innerHTML = legendHTML;
+        }
+
+        function renderAccessMatrix() {
+            const matrix = document.getElementById('access-matrix');
+            const processes = Object.values(currentState.processes);
+            if(processes.length === 0) {
+                matrix.innerHTML = '<div class="text-center text-gray-500 mt-4">Matrix Empty</div>';
+                return;
+            }
+
+            let html = `
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-800 text-gray-400">
+                            <th class="py-2">Domain</th>
+                            <th class="py-2">Permissions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            processes.forEach(p => {
+                const frames = Object.values(p.pages);
+                let permsHtml = frames.length > 0 ? frames.map(f => `<span class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">Frame ${f}: <span class="text-green-400 font-bold">RW</span></span>`).join(' ') : '<span class="text-gray-500 italic">No access</span>';
+                html += `
+                    <tr class="border-b border-gray-800/50">
+                        <td class="py-2 font-mono text-cyan-400">domain_${p.pid}</td>
+                        <td class="py-2 text-gray-300"><div class="flex flex-wrap gap-1">${permsHtml}</div></td>
+                    </tr>
+                `;
+            });
+            html += `</tbody></table>`;
+            matrix.innerHTML = html;
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logs-container');
+            container.innerHTML = '';
+            if(currentState.logs.length === 0) {
+                container.innerHTML = '<div class="text-gray-600 italic">Waiting for events...</div>';
+                return;
+            }
+
+            currentState.logs.forEach(log => {
+                let style = 'text-gray-300 border-l-2 border-gray-700';
+                if(log.level === 'CRITICAL') style = 'text-red-400 bg-red-900/10 border-l-2 border-red-500';
+                if(log.level === 'WARNING') style = 'text-amber-400 bg-amber-900/10 border-l-2 border-amber-500';
+                if(log.level === 'SUCCESS') style = 'text-green-400 bg-green-900/10 border-l-2 border-green-500';
+                if(log.level === 'ERROR') style = 'text-orange-400 bg-orange-900/10 border-l-2 border-orange-500';
+
+                const time = new Date(log.time * 1000).toISOString().split('T')[1].slice(0, -1);
+                container.innerHTML += `
+                    <div class="p-1.5 pl-2 animate-fade-in ${style}">
+                        <span class="text-gray-500 mr-2">[${time}]</span>
+                        <span class="font-bold mr-2">${log.level}:</span>
+                        ${log.message}
+                    </div>
+                `;
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function updateSelects() {
+            const selects = ['attack-overflow-pid', 'attack-source-pid', 'attack-target-pid', 'shared-pid1', 'shared-pid2', 'paging-pid-select'];
+            const processes = Object.values(currentState.processes);
+            
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                const currentVal = el.value;
+                el.innerHTML = '<option value="">Select...</option>';
+                processes.forEach(p => {
+                    el.innerHTML += `<option value="${p.pid}">PID ${p.pid} (${p.name})</option>`;
+                });
+                if(processes.find(p => p.pid == currentVal)) {
+                    el.value = currentVal;
+                }
+            });
+        }
+
+        function renderPaging() {
+            const view = document.getElementById('paging-view');
+            const pid = document.getElementById('paging-pid-select').value;
+            
+            if(!pid || !currentState.processes[pid]) {
+                view.innerHTML = 'Select a process to view its page table.';
+                return;
+            }
+
+            const p = currentState.processes[pid];
+            const entries = Object.entries(p.pages);
+
+            let logicalHtml = '';
+            let physicalHtml = '';
+
+            if (entries.length === 0) {
+                logicalHtml = '<div class="text-xs text-gray-500 text-center">No Pages</div>';
+            } else {
+                entries.forEach(([log, phys]) => {
+                    logicalHtml += `
+                        <div class="bg-gray-800 border border-gray-600 rounded p-2 text-center text-sm relative group animate-fade-in">
+                            Page ${log}
+                            <div class="absolute top-1/2 -right-12 w-12 h-0.5 bg-cyan-500/50 hidden group-hover:block z-10"></div>
+                        </div>
+                    `;
+                    physicalHtml += `
+                        <div class="bg-blue-900/30 border border-blue-500 rounded p-2 text-center text-sm font-mono animate-fade-in">
+                            Frame ${phys}
+                        </div>
+                    `;
+                });
+            }
+
+            view.innerHTML = `
+                <div class="flex flex-col items-center w-32">
+                    <h3 class="text-sm font-bold text-gray-400 mb-2">Logical Pages</h3>
+                    <div class="flex flex-col gap-2 w-full">${logicalHtml}</div>
+                </div>
+                <div class="flex flex-col items-center justify-center px-4 self-stretch">
+                    <div class="bg-cyan-900/30 border border-cyan-500/50 text-cyan-400 p-4 rounded-lg font-bold shadow-[0_0_15px_rgba(6,182,212,0.2)]">MMU</div>
+                </div>
+                <div class="flex flex-col items-center w-32">
+                    <h3 class="text-sm font-bold text-gray-400 mb-2">Physical Frames</h3>
+                    <div class="flex flex-col gap-2 w-full">${physicalHtml}</div>
+                </div>
+            `;
+        }
+
+        // Init icons on load
+        lucide.createIcons();
+    </script>
+</body>
+</html>
